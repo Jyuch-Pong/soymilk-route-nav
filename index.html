@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>配送路線導航</title>
+<style>
+  :root{
+    --bg-0:#11131a;
+    --bg-1:#171a23;
+    --card:#1d212c;
+    --line:#2b2f3d;
+    --cream:#f2e6cc;
+    --cream-dim:#a9a496;
+    --amber:#e2a545;
+    --green:#5aa876;
+    --blue:#5b84ab;
+    --purple:#9b8ac1;
+    --grey:#7c7f8c;
+    --radius:14px;
+    font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg-0);color:var(--cream);}
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse 900px 400px at 50% -10%, #2a2416 0%, transparent 60%),
+      linear-gradient(180deg, var(--bg-0) 0%, #14161d 100%);
+    padding-bottom:40px;
+  }
+
+  header{
+    position:sticky; top:0; z-index:20;
+    background:rgba(17,19,26,0.94);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+    padding:14px 16px 12px;
+  }
+  .brand{
+    display:flex; align-items:baseline; justify-content:space-between; gap:8px;
+    margin-bottom:12px;
+  }
+  .brand h1{ font-size:17px; font-weight:800; letter-spacing:0.5px; margin:0; color:var(--cream); }
+  .brand .date{ font-size:12px; color:var(--cream-dim); font-variant-numeric:tabular-nums; }
+
+  .modeRow{ display:flex; gap:8px; margin-bottom:10px; }
+  .modeBtn{
+    flex:1; text-align:center; padding:9px 6px; border-radius:10px;
+    background:var(--bg-1); border:1px solid var(--line);
+    font-size:13px; font-weight:700; color:var(--cream-dim);
+    cursor:pointer; user-select:none;
+  }
+  .modeBtn.active{ background:linear-gradient(180deg,#e2a545,#c8862a); color:#1a1305; border-color:transparent; }
+
+  .letterRow{ display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+  .letterChip{
+    width:34px; height:34px; border-radius:9px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--bg-1); border:1px solid var(--line);
+    font-size:13px; font-weight:800; color:var(--grey);
+    cursor:pointer; user-select:none;
+  }
+  .letterChip.active{ background:linear-gradient(180deg,#e2a545,#c8862a); color:#1a1305; border-color:transparent; }
+  .letterChip.disabled{ opacity:.35; cursor:default; }
+
+  .tabs{ display:flex; gap:8px; margin-bottom:10px; }
+  .tab{
+    flex:1; text-align:center; padding:9px 6px; border-radius:10px;
+    background:var(--bg-1); border:1px solid var(--line);
+    font-size:13px; font-weight:700; color:var(--cream-dim);
+    cursor:pointer; user-select:none;
+  }
+  .tab.active{ background:rgba(226,165,69,.16); border-color:var(--amber); color:var(--amber); }
+  .tab.disabled{ opacity:.3; cursor:default; }
+  .tab .count{ font-weight:500; opacity:.8; font-size:11px; }
+
+  .searchRow{ display:flex; gap:8px; align-items:center; }
+  .searchBox{ flex:1; display:flex; align-items:center; gap:6px; background:var(--bg-1); border:1px solid var(--line); border-radius:10px; padding:8px 10px; }
+  .searchBox input{ flex:1; border:none; background:transparent; outline:none; color:var(--cream); font-size:14px; }
+  .searchBox input::placeholder{ color:var(--grey); }
+  .searchBox svg{ flex:none; opacity:.6; }
+  .resetBtn{ flex:none; padding:8px 10px; border-radius:10px; background:var(--bg-1); border:1px solid var(--line); color:var(--cream-dim); font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; }
+
+  .progressWrap{ padding:10px 16px 4px; }
+  .progressLabel{ display:flex; justify-content:space-between; font-size:11px; color:var(--cream-dim); margin-bottom:6px; font-variant-numeric:tabular-nums; }
+  .progressBar{ height:7px; border-radius:99px; background:var(--bg-1); overflow:hidden; border:1px solid var(--line); }
+  .progressFill{ height:100%; border-radius:99px; background:linear-gradient(90deg,#c8862a,#e2a545); transition:width .25s ease; width:0%; }
+
+  main{ padding:14px 16px 10px; max-width:640px; margin:0 auto; }
+  .stop{ position:relative; display:flex; background:var(--card); border:1px solid var(--line); border-radius:var(--radius); margin-bottom:10px; overflow:hidden; transition:opacity .2s ease; }
+  .stop.done{ opacity:.45; }
+
+  .stubCol{ flex:none; width:52px; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:14px 0; background:var(--bg-1); border-right:1px dashed var(--line); }
+  .seqNum{ font-family:"SF Mono","JetBrains Mono",Consolas,monospace; font-size:15px; font-weight:700; color:var(--amber); line-height:1; }
+  .seqTotal{ font-family:"SF Mono","JetBrains Mono",Consolas,monospace; font-size:9px; color:var(--grey); margin-top:2px; }
+  .codeTag{ font-family:"SF Mono","JetBrains Mono",Consolas,monospace; font-size:8.5px; color:var(--purple); margin-top:6px; }
+
+  .body{ flex:1; padding:12px 12px 12px 14px; min-width:0; }
+  .rowTop{ display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+  .storeName{ font-size:15.5px; font-weight:800; color:var(--cream); line-height:1.3; }
+  .badgeGroup{ display:flex; gap:4px; flex-wrap:wrap; flex:none; justify-content:flex-end; }
+  .badge{ flex:none; font-size:10.5px; font-weight:700; padding:3px 7px; border-radius:99px; white-space:nowrap; letter-spacing:.3px; }
+  .badge.LINE{ background:rgba(90,168,118,.18); color:var(--green); }
+  .badge.現場{ background:rgba(226,165,69,.18); color:var(--amber); }
+  .badge.公司{ background:rgba(91,132,171,.18); color:var(--blue); }
+  .badge.帶巡{ background:rgba(155,138,193,.2); color:var(--purple); }
+  .badge.問{ background:rgba(124,127,140,.22); color:var(--grey); }
+  .badge.其他{ background:rgba(124,127,140,.22); color:var(--grey); }
+
+  .note{ font-size:12.5px; color:var(--cream-dim); margin-top:4px; line-height:1.5; }
+
+  .addrBtn{ display:flex; align-items:center; gap:8px; margin-top:10px; padding:9px 10px; background:rgba(226,165,69,.09); border:1px solid rgba(226,165,69,.35); border-radius:10px; color:var(--cream); text-decoration:none; font-size:13px; cursor:pointer; }
+  .addrBtn:active{ background:rgba(226,165,69,.2); }
+  .addrBtn svg{ flex:none; color:var(--amber); }
+  .addrBtn span{ flex:1; }
+  .addrBtn .go{ flex:none; font-size:11px; font-weight:700; color:var(--amber); }
+
+  .metaRow{ display:flex; align-items:center; justify-content:space-between; margin-top:9px; gap:8px; }
+  .phoneLink{ display:flex; align-items:center; gap:5px; font-size:12px; color:var(--blue); text-decoration:none; font-variant-numeric:tabular-nums; }
+  .phoneLink svg{ flex:none; }
+
+  .doneBtn{ flex:none; display:flex; align-items:center; gap:6px; padding:6px 12px; border-radius:99px; background:var(--bg-1); border:1px solid var(--line); color:var(--cream-dim); font-size:12px; font-weight:700; cursor:pointer; }
+  .doneBtn.on{ background:rgba(90,168,118,.18); border-color:rgba(90,168,118,.5); color:var(--green); }
+
+  .emptyState{ text-align:center; padding:40px 20px; color:var(--grey); font-size:13px; line-height:1.7; }
+  footer{ text-align:center; padding:18px 16px 6px; color:var(--grey); font-size:11px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1 id="titleLabel">🥛 配送路線導航</h1>
+    <div class="date" id="dateLabel"></div>
+  </div>
+
+  <div class="modeRow" id="modeRow"></div>
+  <div class="letterRow" id="letterRow" style="display:none;"></div>
+  <div class="tabs" id="tabs"></div>
+
+  <div class="searchRow">
+    <div class="searchBox">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M20 20L16.5 16.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input type="text" id="searchInput" placeholder="搜尋店名或備註…">
+    </div>
+    <button class="resetBtn" id="resetBtn">重設今日</button>
+  </div>
+</header>
+
+<div class="progressWrap">
+  <div class="progressLabel">
+    <span id="progressText">0 / 0 已完成</span>
+    <span id="progressPct">0%</span>
+  </div>
+  <div class="progressBar"><div class="progressFill" id="progressFill"></div></div>
+</div>
+
+<main id="list"></main>
+
+<footer>點地址卡片直接開啟 Google 導航・點完成標記今日已送達</footer>
+
+<script>
+const DATA = {"substitute":{"route1":[{"seq":1,"name":"美而美","address":"桃園市蘆竹區南崁路152-3號","method":"LINE","note":"香無袋$35","phone":"","navAddress":"桃園市蘆竹區南崁路152-3號","isLandmark":false},{"seq":2,"name":"8度c","address":"桃園市蘆竹區南昌路132號","method":"LINE","note":"籃換籃 香無袋  5點30開門","phone":"","navAddress":"桃園市蘆竹區南昌路132號","isLandmark":false},{"seq":3,"name":"香吉堡","address":"桃園市蘆竹區忠孝西路169巷28號","method":"現場","note":"米杯,燕杯 無袋保2","phone":"","navAddress":"桃園市蘆竹區忠孝西路169巷28號","isLandmark":false},{"seq":4,"name":"阿布漢堡","address":"桃園市蘆竹區南昌路278號","method":"LINE","note":"香無袋  米薏芝麻黑豆紅豆杏仁南瓜 保3","phone":"","navAddress":"桃園市蘆竹區南昌路278號","isLandmark":false},{"seq":5,"name":"虎咬豬","address":"桃園市蘆竹區奉化路133號","method":"LINE","note":"香無杯12元 米薏仁芝麻15 杏17紅奶18   5點30開門","phone":"","navAddress":"桃園市蘆竹區奉化路133號","isLandmark":false},{"seq":6,"name":"義晨坊","address":"桃園市蘆竹區南順一街61號","method":"LINE","note":"無糖紅豆南瓜杯  6點開門 過期回收不換","phone":"03-322-0117","navAddress":"桃園市蘆竹區南順一街61號","isLandmark":false},{"seq":7,"name":"歡喜湯包","address":"桃園市南昌路30號 (旁)","method":"現場","note":"香袋保2 全杯  5點30開門 無米薏芝杏南保4紅豆保2","phone":"","navAddress":"桃園市南昌路30號","isLandmark":false},{"seq":8,"name":"傻師傅","address":"桃園市蘆竹區南順六街61號","method":"LINE","note":"香無杯","phone":"","navAddress":"桃園市蘆竹區南順六街61號","isLandmark":false},{"seq":9,"name":"肉Send","address":"桃園市蘆竹區中山北街21號","method":"LINE","note":"香無袋  大門旁小白蓋遙控器在裡面 可早到","phone":"","navAddress":"桃園市蘆竹區中山北街21號","isLandmark":false},{"seq":10,"name":"活力廚房(一)","address":"桃園市蘆竹區南崁路一段162號","method":"問","note":"香袋抓16無袋抓8  6點開門 無薏芝杏南杯保10","phone":"","navAddress":"桃園市蘆竹區南崁路一段162號","isLandmark":false},{"seq":11,"name":"炒麵肉羹","address":"桃園市大園區菓林路30號","method":"LINE","note":"香袋 香無杯","phone":"","navAddress":"桃園市大園區菓林路30號","isLandmark":false},{"seq":12,"name":"永和豆漿","address":"桃園市大園區三民路二段579號","method":"現","note":"燕芝黑杏杯 各保10","phone":"03-3831749","navAddress":"桃園市大園區三民路二段579號","isLandmark":false},{"seq":13,"name":"吃天下","address":"桃園市蘆竹區海山路二段226號","method":"LINE","note":"米袋 芝紅杯","phone":"","navAddress":"桃園市蘆竹區海山路二段226號","isLandmark":false},{"seq":14,"name":"來來中西式","address":"桃園市中壢區福州二街365號","method":"現","note":"無米薏袋","phone":"03-4623629","navAddress":"桃園市中壢區福州二街365號","isLandmark":false},{"seq":15,"name":"平鎮飯糰","address":"桃園市中壢區康樂路35號","method":"LINE","note":"香無米芝麻杯","phone":"","navAddress":"桃園市中壢區康樂路35號","isLandmark":false},{"seq":16,"name":"平鎮味亦美","address":"桃園市中壢區育達路二段100號","method":"LINE","note":"無袋意袋","phone":"03-493-9435","navAddress":"桃園市中壢區育達路二段100號","isLandmark":false},{"seq":17,"name":"君彤早餐","address":"桃園市平鎮區大仁街2-3號","method":"LINE","note":"(11點關門) 無糖杯","phone":"03-284-0897","navAddress":"桃園市平鎮區大仁街2-3號","isLandmark":false},{"seq":18,"name":"莫爾漢堡","address":"桃園市平鎮區崇義六街8號","method":"現","note":"香無袋各抓3包","phone":"03-402-3887","navAddress":"桃園市平鎮區崇義六街8號","isLandmark":false},{"seq":19,"name":"81早午餐","address":"中壢區廣州街6號","method":"LINE","note":"香無袋$40","phone":"","navAddress":"桃園市中壢區廣州街6號","isLandmark":false},{"seq":20,"name":"早點名","address":"桃園市中壢區廣州路12號","method":"LINE","note":"香無袋","phone":"03-467-9721","navAddress":"桃園市中壢區廣州路12號","isLandmark":false},{"seq":21,"name":"有點東西","address":"桃園市中壢區弘揚路18號","method":"LINE","note":"香無袋$40, 薏仁$45","phone":"","navAddress":"桃園市中壢區弘揚路18號","isLandmark":false},{"seq":22,"name":"大嗑","address":"桃園市中壢區弘揚路71號","method":"LINE","note":"無杯$12 薏仁$13其他原價","phone":"03-436-1789","navAddress":"桃園市中壢區弘揚路71號","isLandmark":false},{"seq":23,"name":"無名早餐","address":"桃園市中壢區實踐路86號","method":"LINE","note":"香無杯 米燕杯$13","phone":"","navAddress":"桃園市中壢區實踐路86號","isLandmark":false},{"seq":24,"name":"藍色美而美","address":"桃園區中壢中北路190號","method":"現","note":"白豆保12  35元 無糖保6  40元 米薏芝南杯保2","phone":"","navAddress":"桃園市中壢區中北路190號","isLandmark":false},{"seq":25,"name":"晨美好","address":"桃園市中壢區新生北路371號","method":"公司","note":"芝麻紅豆杯","phone":"03-463-0078","navAddress":"桃園市中壢區新生北路371號","isLandmark":false},{"seq":26,"name":"吉得堡","address":"桃園市中壢區莊敬路791號","method":"現","note":"香杯抓15 無杯抓25 燕杯抓5","phone":"","navAddress":"桃園市中壢區莊敬路791號","isLandmark":false},{"seq":27,"name":"原蓁","address":"桃園市中壢區文化二路269號","method":"LINE","note":"(10:30前到貨) 無薏米袋","phone":"0987-898-282","navAddress":"桃園市中壢區文化二路269號","isLandmark":false},{"seq":28,"name":"弘爺","address":"桃園市中壢區長春路185號","method":"LINE","note":"香無薏袋$42 米袋$52","phone":"03-453-5253","navAddress":"桃園市中壢區長春路185號","isLandmark":false},{"seq":29,"name":"美而美","address":"桃園市中壢區吉林路168號","method":"LINE","note":"香無袋","phone":"03-462-8299","navAddress":"桃園市中壢區吉林路168號","isLandmark":false},{"seq":30,"name":"一品包子","address":"桃園市中壢區忠孝路302號","method":"現場","note":"香袋$40 抓10包","phone":"","navAddress":"桃園市中壢區忠孝路302號","isLandmark":false},{"seq":31,"name":"美而美","address":"桃園市平鎮區成章一街109號","method":"現","note":"香無杯各抓5","phone":"","navAddress":"桃園市平鎮區成章一街109號","isLandmark":false},{"seq":32,"name":"非吃不可","address":"桃園市中壢區福德路37號","method":"現","note":"白$37無$42 白豆抓6 無糖抓1","phone":"0966-648-185","navAddress":"桃園市中壢區福德路37號","isLandmark":false},{"seq":33,"name":"晨光小寶","address":"桃園市中壢區榮民南路166號","method":"LINE","note":"香無袋","phone":"","navAddress":"桃園市中壢區榮民南路166號","isLandmark":false},{"seq":34,"name":"東方美","address":"桃園市中壢區榮民南路235號","method":"LINE","note":"香無袋","phone":"","navAddress":"桃園市中壢區榮民南路235號","isLandmark":false},{"seq":35,"name":"萊客堡","address":"桃園市中壢區華勛街282號","method":"LINE","note":"白豆$35 無袋$40 薏仁漿$45","phone":"","navAddress":"桃園市中壢區華勛街282號","isLandmark":false},{"seq":36,"name":"金色陽光","address":"桃園市中壢區華勛街307號","method":"LINE","note":"白豆$37,全杯","phone":"","navAddress":"桃園市中壢區華勛街307號","isLandmark":false},{"seq":37,"name":"晉元素食","address":"桃園市中壢區晉元路212號","method":"現","note":"香袋 無薏芝杯","phone":"03-465-0586","navAddress":"桃園市中壢區晉元路212號","isLandmark":false},{"seq":38,"name":"天樂包子","address":"桃園市中壢區龍東路489號","method":"現","note":"香無40黑米袋$55 保香12無4黑米各2","phone":"03-437-8523","navAddress":"桃園市中壢區龍東路489號","isLandmark":false},{"seq":39,"name":"弘爺(龍江店)","address":"桃園市中壢區龍江路60號","method":"LINE","note":"香無袋","phone":"","navAddress":"桃園市中壢區龍江路60號","isLandmark":false},{"seq":40,"name":"早太陽","address":"平鎮區貿一路50號","method":"LINE","note":"香無袋 全杯","phone":"","navAddress":"桃園市平鎮區貿一路50號","isLandmark":false},{"seq":41,"name":"金旺包子","address":"桃園市中壢區龍東路212號","method":"現","note":"香無$40黑米袋$55 保香13無5黑3米2","phone":"0935-626-556","navAddress":"桃園市中壢區龍東路212號","isLandmark":false},{"seq":42,"name":"托比","address":"中壢區中山東路四段9號","method":"LINE","note":"燕芝杯 滿10送1","phone":"","navAddress":"桃園市中壢區中山東路四段9號","isLandmark":false},{"seq":43,"name":"美而美","address":"桃園市中壢區後興路一段118號","method":"LINE","note":"白豆$35無袋$40","phone":"","navAddress":"桃園市中壢區後興路一段118號","isLandmark":false},{"seq":44,"name":"菓樂","address":"中壢區後寮一路138號","method":"LINE","note":"無糖$40 薏仁$45 白豆$35 保白5無3薏1","phone":"","navAddress":"桃園市中壢區後寮一路138號","isLandmark":false},{"seq":45,"name":"呷八霸","address":"桃園市中壢區後寮一路162號","method":"LINE","note":"香無袋","phone":"","navAddress":"桃園市中壢區後寮一路162號","isLandmark":false},{"seq":46,"name":"悅子","address":"新莊區中正路81巷1號","method":"公司","note":"全袋","phone":"","navAddress":"新北市新莊區中正路81巷1號","isLandmark":false}],"route2":[{"seq":1,"name":"黑飯糰","address":"新莊自信街29號","method":"LINE","note":"香無原價 米薏仁芝麻杯13","phone":"","navAddress":"新北市新莊區自信街29號","isLandmark":false},{"seq":2,"name":"七分飽","address":"北市中山北路二段92號[馬偕]","method":"LINE","note":"全杯","phone":"","navAddress":"台北市中山北路二段92號","isLandmark":false},{"seq":3,"name":"老哥水煎包","address":"內湖區江南街126號","method":"LINE","note":"香袋42 香無杯11 米燕麥芝麻杏仁黑豆南瓜杯","phone":"","navAddress":"台北市內湖區江南街126號","isLandmark":false},{"seq":4,"name":"新華水煎包","address":"基隆仁愛區劉銘傳路5-1號","method":"LINE","note":"無白米袋 全杯","phone":"","navAddress":"基隆市仁愛區劉銘傳路5-1號","isLandmark":false},{"seq":5,"name":"巨林美而美","address":"基隆市暖暖街467號","method":"LINE","note":"米漿薏仁袋","phone":"","navAddress":"基隆市暖暖街467號","isLandmark":false},{"seq":6,"name":"戴著走早餐","address":"基隆市暖暖街167號","method":"LINE","note":"香袋","phone":"","navAddress":"基隆市暖暖街167號","isLandmark":false},{"seq":7,"name":"又又早餐","address":"七堵區大德路160號","method":"LINE","note":"香無袋 米漿薏仁芝麻杯","phone":"","navAddress":"基隆市七堵區大德路160號","isLandmark":false},{"seq":8,"name":"美而美","address":"七堵福一街79號","method":"LINE","note":"不開單 白  無","phone":"02-2451-1499","navAddress":"基隆市七堵區福一街79號","isLandmark":false},{"seq":9,"name":"塘老鴨","address":"七堵福五街12號","method":"LINE","note":"香無袋","phone":"02-2451-0740","navAddress":"基隆市七堵區福五街12號","isLandmark":false},{"seq":10,"name":"超級晨堡","address":"七堵工建路1-9號","method":"現","note":"換 薏仁杯 米漿杯 各抓10杯","phone":"02-2452-9888","navAddress":"基隆市七堵區工建路1-9號","isLandmark":false},{"seq":11,"name":"華姐水煎包","address":"七堵崇智街2-7號 市場","method":"LINE","note":"白豆無糖米漿  薏仁芝麻紅豆南瓜杯 芝紅奶$15","phone":"","navAddress":"基隆市七堵區崇智街2-7號","isLandmark":false},{"seq":12,"name":"巧沛東方美","address":"基隆忠三路25號 市場","method":"現","note":"換 保香20無米薏芝各5 杏6南5紅5 密碼:2386","phone":"02-2423-4351","navAddress":"基隆市忠三路25號","isLandmark":false},{"seq":13,"name":"戴著走早餐","address":"基隆安一路227號","method":"LINE","note":"換 香袋","phone":"","navAddress":"基隆市安一路227號","isLandmark":false},{"seq":14,"name":"花媽","address":"基隆義二路159號","method":"LINE","note":"無袋 密碼9000","phone":"","navAddress":"基隆市義二路159號","isLandmark":false},{"seq":15,"name":"美順軒","address":"基隆義一路25號","method":"現","note":"換 香袋6無袋3  米薏芝各保3","phone":"02-24223377","navAddress":"基隆市義一路25號","isLandmark":false},{"seq":16,"name":"369包子","address":"基隆信二路258號","method":"LINE","note":"全杯","phone":"02-24283019","navAddress":"基隆市信二路258號","isLandmark":false},{"seq":17,"name":"QQ堡","address":"基隆信二路234巷2-2號","method":"LINE","note":"香袋 無袋","phone":"02-24261790","navAddress":"基隆市信二路234巷2-2號","isLandmark":false},{"seq":18,"name":"碳烤土司","address":"基隆信二路91號","method":"LINE","note":"香袋43","phone":"","navAddress":"基隆市信二路91號","isLandmark":false},{"seq":19,"name":"健康蔬食","address":"基隆義七路6號","method":"LINE","note":"無袋","phone":"","navAddress":"基隆市義七路6號","isLandmark":false},{"seq":20,"name":"瑞麟美而美","address":"基隆愛九路12號","method":"現","note":"換 全杯 香10無10 米3薏3芝3杏3南3紅3","phone":"02-2424-7380","navAddress":"基隆市愛九路12號","isLandmark":false},{"seq":21,"name":"奧爾斯","address":"基隆仁二路37號","method":"LINE","note":"換 薏杯 米杯 杏杯","phone":"02-24250499","navAddress":"基隆市仁二路37號","isLandmark":false},{"seq":22,"name":"樂澄","address":"基隆東信路300號","method":"現","note":"香袋無袋 薏仁杯","phone":"02-2466-7008","navAddress":"基隆市東信路300號","isLandmark":false},{"seq":23,"name":"吉哆堡","address":"基隆祥豐街317號","method":"LINE","note":"米袋 芝麻杯","phone":"","navAddress":"基隆市祥豐街317號","isLandmark":false},{"seq":24,"name":"瑞麟美而美","address":"基隆中正區祥豐街843號","method":"現","note":"換 籃換籃 香袋保6 無袋保4","phone":"02-24622205","navAddress":"基隆市中正區祥豐街843號","isLandmark":false},{"seq":25,"name":"鮮堡","address":"基隆和一路55號","method":"LINE","note":"香無燕麥芝麻杯","phone":"","navAddress":"基隆市和一路55號","isLandmark":false},{"seq":26,"name":"美而美","address":"基隆中船路7巷21號","method":"現","note":"保香杯5 無杯10","phone":"","navAddress":"基隆市中船路7巷21號","isLandmark":false},{"seq":27,"name":"66早餐","address":"汐止區建成路66號","method":"現","note":"有無袋 米袋","phone":"02-26432926","navAddress":"新北市汐止區建成路66號","isLandmark":false},{"seq":28,"name":"樂找餐","address":"汐止區忠孝東路493號","method":"LINE","note":"香無袋","phone":"","navAddress":"新北市汐止區忠孝東路493號","isLandmark":false},{"seq":29,"name":"A+","address":"汐止區仁愛路307號","method":"現","note":"換 香無杯 薏杯芝杯杏杯紅杯","phone":"02-26481113","navAddress":"新北市汐止區仁愛路307號","isLandmark":false},{"seq":30,"name":"可利","address":"汐止區仁愛路79號","method":"現","note":"香袋 無糖杯","phone":"","navAddress":"新北市汐止區仁愛路79號","isLandmark":false},{"seq":31,"name":"味亦美","address":"汐止區仁愛路31號","method":"現","note":"香無袋各保3","phone":"02-26481488","navAddress":"新北市汐止區仁愛路31號","isLandmark":false},{"seq":32,"name":"喫飽","address":"汐止區復興路21號","method":"LINE","note":"香袋 無袋","phone":"02-2641-3129","navAddress":"新北市汐止區復興路21號","isLandmark":false},{"seq":33,"name":"享來","address":"汐止區大同路二段312巷3號","method":"LINE","note":"米漿薏仁杯","phone":"","navAddress":"新北市汐止區大同路二段312巷3號","isLandmark":false},{"seq":34,"name":"丫丫","address":"汐止區大同路二段213號","method":"LINE","note":"香無袋 薏南杯","phone":"","navAddress":"新北市汐止區大同路二段213號","isLandmark":false},{"seq":35,"name":"歡樂","address":"汐止區水源路二段28號","method":"LINE","note":"香杯 無杯 薏杯 芝杯 叫幾杯給幾支吸管","phone":"02-2649-0377","navAddress":"新北市汐止區水源路二段28號","isLandmark":false},{"seq":36,"name":"口米口米","address":"汐止區水源路一段295號","method":"LINE","note":"香無袋43 米薏仁芝麻杯","phone":"","navAddress":"新北市汐止區水源路一段295號","isLandmark":false},{"seq":37,"name":"東科便當","address":"東科大樓","method":"LINE","note":"換 香15無15米5薏仁6芝麻5杏仁6杯","phone":"0918-002-698","navAddress":"東科大樓","isLandmark":true},{"seq":38,"name":"中興眷村","address":"東科大樓","method":"LINE","note":"香無43元  黑豆原價","phone":"0906-680-071","navAddress":"東科大樓","isLandmark":true},{"seq":39,"name":"椒柒(東科)","address":"東科大樓","method":"LINE","note":"香無袋40元 開單月結","phone":"","navAddress":"東科大樓","isLandmark":true},{"seq":40,"name":"椒柒(遠東)","address":"遠東大樓","method":"LINE","note":"香無袋40元 開單月結","phone":"","navAddress":"遠東大樓","isLandmark":true},{"seq":41,"name":"美而美","address":"汐止區長江街33號","method":"LINE","note":"換 香杯無杯薏仁芝麻","phone":"02-2648-4561","navAddress":"新北市汐止區長江街33號","isLandmark":false},{"seq":42,"name":"田園香香","address":"汐止區長江街3號","method":"LINE","note":"芝杯 杏杯","phone":"02-8642-2323","navAddress":"新北市汐止區長江街3號","isLandmark":false},{"seq":43,"name":"找餐306","address":"汐止區福德三路3號","method":"LINE","note":"白豆35 開單月結 週二公休","phone":"02-2695-3069","navAddress":"新北市汐止區福德三路3號","isLandmark":false},{"seq":44,"name":"MOMO","address":"汐止區樟樹一路268號","method":"LINE","note":"香袋 無袋","phone":"02-26488836","navAddress":"新北市汐止區樟樹一路268號","isLandmark":false},{"seq":45,"name":"日初樂樂","address":"汐止區樟樹一路135巷24號","method":"LINE","note":"無袋","phone":"02-2647-3373","navAddress":"新北市汐止區樟樹一路135巷24號","isLandmark":false},{"seq":46,"name":"香香堡","address":"汐止區樟樹一路45號","method":"LINE","note":"香無袋","phone":"02-2690-3931","navAddress":"新北市汐止區樟樹一路45號","isLandmark":false},{"seq":47,"name":"大腸麵線","address":"汐止區中興路110巷10號","method":"LINE","note":"籃換籃 有叫再去 有無米薏芝","phone":"02-2694-4563","navAddress":"新北市汐止區中興路110巷10號","isLandmark":false},{"seq":48,"name":"熊手感烘焙","address":"汐止區福德一路298號","method":"","note":"換 全杯保6 週二固定一包薏仁","phone":"02-2692-6092","navAddress":"新北市汐止區福德一路298號","isLandmark":false},{"seq":49,"name":"咬一口","address":"汐止福德二路52號","method":"LINE","note":"香無袋","phone":"","navAddress":"新北市汐止區福德二路52號","isLandmark":false},{"seq":50,"name":"中興眷村","address":"汐止中興路214巷6號","method":"LINE","note":"黑豆袋","phone":"","navAddress":"新北市汐止區中興路214巷6號","isLandmark":false},{"seq":51,"name":"威利漢堡","address":"汐止康寧街141巷53-3號","method":"","note":"香無袋各保3","phone":"02-2692-6966","navAddress":"新北市汐止區康寧街141巷53-3號","isLandmark":false},{"seq":52,"name":"響早你","address":"內湖區康樂街107號[休二]","method":"LINE","note":"香袋 杏仁杯 密碼0976 右下層冰箱","phone":"","navAddress":"台北市內湖區康樂街107號","isLandmark":false},{"seq":53,"name":"愛上愛莉","address":"內湖區康樂街72巷17弄76號","method":"LINE","note":"全杯","phone":"","navAddress":"台北市內湖區康樂街72巷17弄76號","isLandmark":false},{"seq":54,"name":"轉角小籠包","address":"康寧路三段189巷19號","method":"LINE","note":"香無米杯 有遙控器 會放錢","phone":"","navAddress":"台北市內湖區康寧路三段189巷19號","isLandmark":false},{"seq":55,"name":"飛碟","address":"康寧路三段189巷21弄24號","method":"","note":"香袋","phone":"02-2634-6851","navAddress":"台北市內湖區康寧路三段189巷21弄24號","isLandmark":false},{"seq":56,"name":"早點回魂","address":"康寧路三段189巷3號","method":"LINE","note":"香無袋","phone":"","navAddress":"台北市內湖區康寧路三段189巷3號","isLandmark":false},{"seq":57,"name":"王爺涼麵","address":"康寧路三段16巷31號","method":"LINE","note":"香無袋 香無米燕麥芝麻杯","phone":"","navAddress":"台北市內湖區康寧路三段16巷31號","isLandmark":false},{"seq":58,"name":"大成三總","address":"三軍總醫院","method":"","note":"公司LINE 杯裝","phone":"","navAddress":"三軍總醫院","isLandmark":true},{"seq":59,"name":"美而美","address":"南港區研究院路二段78號","method":"LINE","note":"香無袋 燕麥芝麻杏仁杯","phone":"","navAddress":"台北市南港區研究院路二段78號","isLandmark":false},{"seq":60,"name":"七分飽","address":"台北市鄭州路[中興醫院B1]","method":"LINE","note":"全杯","phone":"0922-510-387","navAddress":"台北市鄭州路","isLandmark":false},{"seq":61,"name":"悅子","address":"新莊中正路81巷1號","method":"LINE","note":"全袋","phone":"","navAddress":"新北市新莊區中正路81巷1號","isLandmark":false}]},"mainlines":{"D":{"monThu":[{"seq":1,"code":"0002","name":"江蘇水煎包","address":"萬華西園路二段261巷59號","navAddress":"台北市萬華區西園路二段261巷59號","method":"LINE/帶巡","note":"35$白包 40$無包 57$米包   20薏20芝杯14$/20杏20南杯17$","phone":"02-2737-0668","isLandmark":false},{"seq":2,"code":"0001","name":"小王子","address":"萬華寶興街63號","navAddress":"台北市萬華區寶興街63號","method":"LINE/帶巡","note":"香6袋  15無3米3薏3芝2黑3杏2南杯","phone":"","isLandmark":false},{"seq":3,"code":"0145","name":"NO13","address":"北市大安區和平東路三段228巷13號","navAddress":"台北市大安區和平東路三段228巷13號","method":"LINE","note":"全杯","phone":"","isLandmark":false},{"seq":4,"code":"0048","name":"巨林美而美","address":"北市吳興街156巷35號","navAddress":"台北市吳興街156巷35號","method":"LINE","note":"籃換籃 白38$ 無杯12$","phone":"02-2737-0668","isLandmark":false},{"seq":5,"code":"0053","name":"威美","address":"北市莊敬路377號","navAddress":"台北市莊敬路377號","method":"LINE/帶巡","note":"香 無 薏 芝杯 保70/60/40/30    訂單:香無10$ 薏芝15$","phone":"02-2720-9364","isLandmark":false},{"seq":6,"code":"0225","name":"老哥水煎包","address":"北市南京東路三段189號","navAddress":"台北市南京東路三段189號","method":"帶巡","note":"香無袋42$  15香袋5無袋","phone":"","isLandmark":false},{"seq":7,"code":"0020","name":"飯糰霸","address":"北市許昌街2號","navAddress":"台北市許昌街2號","method":"LINE/帶巡","note":"香 無杯11$","phone":"","isLandmark":false},{"seq":8,"code":"0017","name":"微瑪","address":"北市延平南路23號","navAddress":"台北市延平南路23號","method":"LINE","note":"香 無袋","phone":"","isLandmark":false},{"seq":9,"code":"0252","name":"張吳記","address":"北市中正區杭州南路二段54-1號","navAddress":"台北市中正區杭州南路二段54-1號","method":"LINE","note":"米芝黑杏杯","phone":"","isLandmark":false},{"seq":10,"code":"0004","name":"好時光飯糰","address":"北市同安街18號","navAddress":"台北市同安街18號","method":"LINE","note":"8送1 香 薏 米袋","phone":"","isLandmark":false},{"seq":11,"code":"0005","name":"吉園","address":"北市同安街79號","navAddress":"台北市同安街79號","method":"LINE","note":"香　薏杯　米薏芝杏杯","phone":"","isLandmark":false},{"seq":12,"code":"0006","name":"小橡蔓蔓","address":"萬華萬大路423巷47號","navAddress":"台北市萬華區萬大路423巷47號","method":"LINE","note":"香袋","phone":"02-2332-3530","isLandmark":false},{"seq":13,"code":"0007","name":"格林早餐吧","address":"萬華東園街164號","navAddress":"台北市萬華區東園街164號","method":"LINE","note":"香 無 薏袋","phone":"02-2309-1976","isLandmark":false},{"seq":14,"code":"0009","name":"萬家鄉","address":"萬華長順街83號","navAddress":"台北市萬華區長順街83號","method":"LINE","note":"43$ 香 無袋","phone":"","isLandmark":false},{"seq":15,"code":"0010","name":"日常","address":"萬華環河南路二段127號","navAddress":"台北市萬華區環河南路二段127號","method":"帶巡","note":"香 無袋 各4","phone":"02-2336-8303","isLandmark":false},{"seq":16,"code":"0011","name":"舉手漢堡","address":"萬華中華路二段99號","navAddress":"台北市萬華區中華路二段99號","method":"LINE","note":"香袋","phone":"","isLandmark":false},{"seq":17,"code":"0012","name":"1021","address":"北市長沙街二段76號","navAddress":"台北市長沙街二段76號","method":"LINE","note":"香袋43元","phone":"","isLandmark":false},{"seq":18,"code":"0013","name":"晨姿美","address":"北市漢口街二段113號","navAddress":"台北市漢口街二段113號","method":"帶巡","note":"40$ 無2 白4","phone":"02-2368-1017","isLandmark":false},{"seq":19,"code":"0014","name":"忠降蔥抓餅","address":"北市中正區忠孝西路一段72-22號","navAddress":"台北市中正區忠孝西路一段72-22號","method":"LINE","note":"香 無袋","phone":"","isLandmark":false},{"seq":20,"code":"0015","name":"QT","address":"北市懷寧街忠孝西路一段72-24號","navAddress":"台北市懷寧街忠孝西路一段72-24號","method":"帶巡","note":"香4無2袋","phone":"02-2368-1737","isLandmark":false},{"seq":21,"code":"0018","name":"美而美","address":"北市懷寧街33號","navAddress":"台北市懷寧街33號","method":"LINE","note":"無袋","phone":"","isLandmark":false},{"seq":22,"code":"0019","name":"美好美","address":"北市懷寧街74號","navAddress":"台北市懷寧街74號","method":"帶巡","note":"香2無2袋 /米25薏15杏15/杯","phone":"","isLandmark":false},{"seq":23,"code":"0021","name":"美而美","address":"北市忠孝東路二段104號","navAddress":"台北市忠孝東路二段104號","method":"帶巡","note":"香10無10杯 薏5芝5/杯","phone":"","isLandmark":false},{"seq":24,"code":"0022","name":"美而美","address":"北市臨沂街33巷24號","navAddress":"台北市臨沂街33巷24號","method":"帶巡","note":"香6無4薏2/包","phone":"02-2307-6610","isLandmark":false},{"seq":25,"code":"0023","name":"美好美","address":"北市濟南路三段24-1號","navAddress":"台北市濟南路三段24-1號","method":"LINE","note":"42$香 無袋  全杯","phone":"02-2314-0140","isLandmark":false},{"seq":26,"code":"0024","name":"美而美","address":"北市信義路三段31巷11號","navAddress":"台北市信義路三段31巷11號","method":"帶巡","note":"香15無15杯","phone":"","isLandmark":false},{"seq":27,"code":"0025","name":"迎園","address":"北市信義路三段99巷13號","navAddress":"台北市信義路三段99巷13號","method":"LINE","note":"香 無袋  米 薏 杏 紅杯","phone":"02-2703-3929","isLandmark":false},{"seq":28,"code":"0026","name":"早自己","address":"北市信義路三段178號","navAddress":"台北市信義路三段178號","method":"LINE","note":"無袋","phone":"","isLandmark":false},{"seq":29,"code":"0027","name":"名家","address":"北市忠孝東路三段248巷14號","navAddress":"台北市忠孝東路三段248巷14號","method":"帶巡","note":"香6無2袋","phone":"02-2741-2913","isLandmark":false},{"seq":30,"code":"0028","name":"美而美","address":"北市忠孝東路三段217巷4弄2號","navAddress":"台北市忠孝東路三段217巷4弄2號","method":"帶巡","note":"香4無2袋","phone":"02-2778-9016","isLandmark":false},{"seq":31,"code":"0029","name":"日日灶咖","address":"北市安東街40號","navAddress":"台北市安東街40號","method":"LINE","note":"香袋","phone":"","isLandmark":false},{"seq":32,"code":"0030","name":"飽包","address":"北市八德路二段346巷1弄5號","navAddress":"台北市八德路二段346巷1弄5號","method":"LINE","note":"42$香 無袋                          0984-033-066","phone":"02-2731-6505","isLandmark":false},{"seq":33,"code":"0031","name":"早自己","address":"北市中山區龍江路2號","navAddress":"台北市中山區龍江路2號","method":"LINE","note":"香 無袋","phone":"","isLandmark":false},{"seq":34,"code":"0032","name":"巴克斯","address":"北市復興南路一段68號","navAddress":"台北市復興南路一段68號","method":"LINE","note":"香 無袋","phone":"","isLandmark":false},{"seq":35,"code":"0033","name":"延吉早餐","address":"北市延吉街172號","navAddress":"台北市延吉街172號","method":"LINE","note":"香袋","phone":"","isLandmark":false},{"seq":36,"code":"0034","name":"yoyo吐司","address":"仁愛路四段300巷25弄1號","navAddress":"台北市大安區仁愛路四段300巷25弄1號","method":"LINE","note":"香 無袋","phone":"","isLandmark":false},{"seq":37,"code":"0271","name":"桃源雞場","address":"大安區仁愛路四段300巷11號","navAddress":"台北市大安區仁愛路四段300巷11號","method":"LINE","note":"香無11$ 米薏芝15$","phone":"","isLandmark":false},{"seq":38,"code":"0035","name":"美香美","address":"北市延吉街137巷9號","navAddress":"台北市延吉街137巷9號","method":"帶巡","note":"香無薏芝杯 保20/15/6/6","phone":"02-2772-7765","isLandmark":false},{"seq":39,"code":"0036","name":"巴克斯","address":"北市延吉街137巷30號","navAddress":"台北市延吉街137巷30號","method":"LINE","note":"香 無袋","phone":"","isLandmark":false},{"seq":40,"code":"0250","name":"餥饗","address":"北市寧安街68巷2號","navAddress":"台北市寧安街68巷2號","method":"LINE","note":"紅杯","phone":"","isLandmark":false},{"seq":41,"code":"0037","name":"賴家蒸餃","address":"北市寧安街68巷(藍色帆布)","navAddress":"台北市寧安街68巷","method":"帶巡","note":"香15無10杯","phone":"0918-147-008","isLandmark":false},{"seq":42,"code":"0038","name":"美而香","address":"北市南京東路四段174號","navAddress":"台北市南京東路四段174號","method":"帶巡","note":"籃換籃 香20無30薏5芝5杏5 /杯","phone":"02-2756-5311","isLandmark":false},{"seq":43,"code":"0039","name":"貝瑞客","address":"北市撫遠街379巷1號","navAddress":"台北市撫遠街379巷1號","method":"LINE","note":"42$香 薏 米袋","phone":"02-2570-2750","isLandmark":false},{"seq":44,"code":"0146","name":"麥亨保","address":"北市松山區撫遠街348號","navAddress":"台北市松山區撫遠街348號","method":"LINE","note":"薏 芝杯","phone":"","isLandmark":false},{"seq":45,"code":"0040","name":"金盃","address":"北市南京東路五段291巷19弄51號","navAddress":"台北市南京東路五段291巷19弄51號","method":"帶巡","note":"香6無4","phone":"02-2760-0660","isLandmark":false},{"seq":46,"code":"0042","name":"熊呵甲","address":"北市中坡南路158號","navAddress":"台北市中坡南路158號","method":"LINE","note":"無袋","phone":"","isLandmark":false},{"seq":47,"code":"0044","name":"轉角早餐","address":"北市虎林街121巷口","navAddress":"台北市虎林街121巷口","method":"帶巡","note":"香4無2","phone":"02-2346-7649","isLandmark":false},{"seq":48,"code":"0045","name":"麥味登","address":"忠孝東路五段372巷27弄77-1號","navAddress":"台北市信義區忠孝東路五段372巷27弄77-1號","method":"LINE","note":"全杯","phone":"02-2722-0602","isLandmark":false},{"seq":49,"code":"0046","name":"巧味軒","address":"北市虎林街164巷28號","navAddress":"台北市虎林街164巷28號","method":"帶巡","note":"2香2無1米袋","phone":"0933-158-982","isLandmark":false},{"seq":50,"code":"0269","name":"忠醬-統一","address":"臺北市信義區忠孝東路五段6號","navAddress":"台北市信義區忠孝東路五段6號","method":"LINE","note":"香 無袋  開單月結","phone":"","isLandmark":false},{"seq":51,"code":"0047","name":"早POWER","address":"北市信義路五段150巷14弄12號","navAddress":"台北市信義路五段150巷14弄12號","method":"LINE","note":"無袋","phone":"02-8789-2565","isLandmark":false},{"seq":52,"code":"0054","name":"福-莊敬","address":"北市信義區莊敬路476號","navAddress":"台北市信義區莊敬路476號","method":"LINE","note":"杯裝 開單月結不寫價錢","phone":"","isLandmark":false},{"seq":53,"code":"0049","name":"1021","address":"北市吳興街8巷2號","navAddress":"台北市吳興街8巷2號","method":"LINE","note":"43$香袋","phone":"","isLandmark":false},{"seq":54,"code":"0055","name":"福-大安","address":"北市大安區復興南路二段80號","navAddress":"台北市大安區復興南路二段80號","method":"LINE","note":"杯裝 開單月結不寫價錢","phone":"02-2700-3737","isLandmark":false},{"seq":55,"code":"0259","name":"微風","address":"北市大安區復興南路二段315之1號","navAddress":"台北市大安區復興南路二段315之1號","method":"LINE","note":"香無袋","phone":"","isLandmark":false},{"seq":56,"code":"0056","name":"綠源品","address":"北市復興南路一段291號","navAddress":"台北市復興南路一段291號","method":"LINE","note":"換 香無3 薏芝3 杏紅3","phone":"","isLandmark":false},{"seq":57,"code":"0057","name":"威布","address":"北市忠孝東路三段251巷7弄15號","navAddress":"台北市忠孝東路三段251巷7弄15號","method":"LINE","note":"無袋","phone":"02-2738-0208","isLandmark":false},{"seq":58,"code":"0058","name":"福-永康","address":"北市大安區信義路二段248號","navAddress":"台北市大安區信義路二段248號","method":"LINE","note":"杯裝 開單月結不寫價錢","phone":"02-3322-1818","isLandmark":false},{"seq":59,"code":"0228","name":"浩克","address":"台北市萬華區內江街29之5號","navAddress":"台北市萬華區內江街29之5號","method":"LINE","note":"無40$","phone":"","isLandmark":false},{"seq":60,"code":"0216","name":"餃落","address":"台北市萬華區廣州街79號","navAddress":"台北市萬華區廣州街79號","method":"LINE","note":"無袋  全杯","phone":"","isLandmark":false},{"seq":61,"code":"0060","name":"忘華刨冰","address":"萬華區廣州街223巷8號","navAddress":"台北市萬華區廣州街223巷8號","method":"LINE","note":"無袋","phone":"","isLandmark":false},{"seq":62,"code":"0061","name":"台南碗糕","address":"北市和平西路三段174-1號","navAddress":"台北市和平西路三段174-1號","method":"帶巡","note":"換 香15無10米4薏8芝10杏15","phone":"02-2306-0935","isLandmark":false},{"seq":63,"code":"0268","name":"冬冬早茶","address":"北市萬華區和平西路三段120號","navAddress":"台北市萬華區和平西路三段120號","method":"LINE","note":"無袋","phone":"","isLandmark":false}],"tueFri":null,"wedSat":[{"seq":1,"code":"0002","name":"江蘇水煎包","address":"萬華西園路二段261巷59號","navAddress":"台北市萬華區西園路二段261巷59號","method":"LINE/帶巡","note":"35$白包 40$無包 57$米包   14$薏芝杯/17$杏南杯15/20/20/20","phone":"02-2737-0668","isLandmark":false},{"seq":2,"code":"0001","name":"小王子","address":"萬華寶興街63號","navAddress":"台北市萬華區寶興街63號","method":"LINE/帶巡","note":"香6袋  無15米薏芝杏黑南杯 保3","phone":"","isLandmark":false},{"seq":3,"code":"0066","name":"呷尚宝忠勇店","address":"桃園市八德區忠勇街283-1號","navAddress":"桃園市八德區忠勇街283-1號","method":"LINE","note":"香、無袋","phone":"03-3621012","isLandmark":false},{"seq":4,"code":"0070","name":"漢堡屋","address":"桃園市八德區大福街87號","navAddress":"桃園市八德區大福街87號","method":"LINE","note":"10送1無袋、全杯","phone":"03-3611316","isLandmark":false},{"seq":5,"code":"0256","name":"緣生緣","address":"桃園市桃園區縣府路252號","navAddress":"桃園市桃園區縣府路252號","method":"LINE","note":"白豆35$","phone":"","isLandmark":false},{"seq":6,"code":"0253","name":"好早早餐","address":"桃園市宏昌五街13號","navAddress":"桃園市八德區宏昌五街13號","method":"LINE","note":"香無袋 燕麥杏紅南杯","phone":"","isLandmark":false},{"seq":7,"code":"0254","name":"翔記","address":"桃園市宏昌六街125號","navAddress":"桃園市八德區宏昌六街125號","method":"LINE","note":"香無袋40 米袋  芝杏杯","phone":"","isLandmark":false},{"seq":8,"code":"0236","name":"粉漿蛋餅","address":"桃園市八德區力行街95號","navAddress":"桃園市八德區力行街95號","method":"LINE","note":"香無袋","phone":"","isLandmark":false},{"seq":9,"code":"0071","name":"麥斯","address":"桃園市八德區桃德路116號","navAddress":"桃園市八德區桃德路116號","method":"LINE","note":"無 米 薏 芝 黑 紅杯","phone":"","isLandmark":false},{"seq":10,"code":"0072","name":"巨林美而美","address":"桃園市桃德路95號","navAddress":"桃園市八德區桃德路95號","method":"LINE","note":"香 無 米杯","phone":"","isLandmark":false},{"seq":11,"code":"0073","name":"美式","address":"桃園市桃園區國際一路88號","navAddress":"桃園市桃園區國際一路88號","method":"LINE","note":"香 無杯","phone":"","isLandmark":false},{"seq":12,"code":"0079","name":"早餐在這","address":"桃園市八德區仁愛街32號","navAddress":"桃園市八德區仁愛街32號","method":"LINE","note":"香袋","phone":"","isLandmark":false},{"seq":13,"code":"0074","name":"挑嘴貓","address":"桃園市八德區公園路6號","navAddress":"桃園市八德區公園路6號","method":"LINE","note":"香 無袋","phone":"03-3668798","isLandmark":false},{"seq":14,"code":"0076","name":"瑞麟美而美","address":"桃園市八德區介壽路一段737號","navAddress":"桃園市八德區介壽路一段737號","method":"LINE","note":"香 無袋 米 薏 黑杯","phone":"03-3637986","isLandmark":false},{"seq":15,"code":"0077","name":"麥の漢堡","address":"桃園市八德區忠勇街229號","navAddress":"桃園市八德區忠勇街229號","method":"LINE","note":"香袋","phone":"03-3631407","isLandmark":false},{"seq":16,"code":"0078","name":"鮮堡","address":"桃園市八德區忠勇街219號","navAddress":"桃園市八德區忠勇街219號","method":"LINE","note":"米 薏袋","phone":"","isLandmark":false},{"seq":17,"code":"0274","name":"早耕","address":"桃園市八德區大成里廣福路119號","navAddress":"桃園市八德區大成里廣福路119號","method":"LINE","note":"無薏袋","phone":"","isLandmark":false},{"seq":18,"code":"0080","name":"金包子","address":"桃園市八德區廣福路107號","navAddress":"桃園市八德區廣福路107號","method":"LINE","note":"40$香無 黑 米袋 保13/8/3/3","phone":"03-361-0067","isLandmark":false},{"seq":19,"code":"0081","name":"村憙","address":"桃園市八德區大成街54號","navAddress":"桃園市八德區大成街54號","method":"LINE","note":"香 無袋","phone":"","isLandmark":false},{"seq":20,"code":"0083","name":"早安兔兔","address":"桃園市八德區銀和街37號","navAddress":"桃園市八德區銀和街37號","method":"LINE","note":"無 米杯","phone":"03-3476599","isLandmark":false},{"seq":21,"code":"0084","name":"微笑城堡","address":"桃園市八德區和平路24號","navAddress":"桃園市八德區和平路24號","method":"LINE","note":"無袋","phone":"03-363-4591","isLandmark":false},{"seq":22,"code":"0086","name":"漢堡大師","address":"桃園市八德區重慶街177巷22號","navAddress":"桃園市八德區重慶街177巷22號","method":"LINE","note":"香 無袋","phone":"03-3667207","isLandmark":false},{"seq":23,"code":"0087","name":"麥斯漢堡","address":"桃園市八德大興路596號","navAddress":"桃園市八德區大興路596號","method":"LINE","note":"45$白袋 杏 南杯","phone":"","isLandmark":false},{"seq":24,"code":"0088","name":"德芳美","address":"桃園市八德區中山路3號","navAddress":"桃園市八德區中山路3號","method":"LINE","note":"全杯","phone":"03-365-1029","isLandmark":false},{"seq":25,"code":"0089","name":"喳凳","address":"桃園市八德區興豐路584號","navAddress":"桃園市八德區興豐路584號","method":"LINE","note":"米 芝杯","phone":"03-3689098","isLandmark":false},{"seq":26,"code":"0090","name":"晨吉司漢","address":"桃園市大溪區介壽路10號","navAddress":"桃園市大溪區介壽路10號","method":"LINE","note":"香無 黑 米袋","phone":"0973-466-356","isLandmark":false},{"seq":27,"code":"0091","name":"好朋友","address":"桃園市大溪區介壽路205號","navAddress":"桃園市大溪區介壽路205號","method":"LINE","note":"香 無 米杯","phone":"03-3808020","isLandmark":false},{"seq":28,"code":"0093","name":"秀如的店","address":"桃園市大溪區仁善街108-10號","navAddress":"桃園市大溪區仁善街108-10號","method":"LINE","note":"香 無 米 南杯","phone":"03-3806242","isLandmark":false},{"seq":29,"code":"0093-1","name":"秀如的店 分店","address":"大溪區仁愛里埔頂路一段456號","navAddress":"桃園市大溪區仁愛里埔頂路一段456號","method":"LINE","note":"香 無 米杯","phone":"","isLandmark":false},{"seq":30,"code":"0094","name":"南興早餐","address":"桃園市大溪區仁和路二段68號","navAddress":"桃園市大溪區仁和路二段68號","method":"LINE","note":"香袋","phone":"","isLandmark":false},{"seq":31,"code":"0095","name":"234早餐","address":"桃園市仁和里員林路一段234號","navAddress":"桃園市八德區仁和里員林路一段234號","method":"LINE","note":"杏黑芝薏南 杯","phone":"","isLandmark":false},{"seq":32,"code":"0096","name":"瑞麟美而美","address":"桃園市大溪區仁和三街30號","navAddress":"桃園市大溪區仁和三街30號","method":"LINE","note":"無 薏 芝杯","phone":"03-3809648","isLandmark":false},{"seq":33,"code":"0097","name":"忠將","address":"桃園市大溪區康莊路34號","navAddress":"桃園市大溪區康莊路34號","method":"LINE","note":"香 芝杯 10搭1","phone":"","isLandmark":false},{"seq":34,"code":"0098","name":"美式早餐屋","address":"桃園市大溪區中正路1號","navAddress":"桃園市大溪區中正路1號","method":"LINE","note":"香 無袋","phone":"03-3881320","isLandmark":false},{"seq":35,"code":"0099","name":"民宿41","address":"桃園市大溪區中央路37號","navAddress":"桃園市大溪區中央路37號","method":"LINE","note":"香 無袋","phone":"03-3881818","isLandmark":false},{"seq":36,"code":"0100","name":"麥","address":"桃園市大溪區文化路232號","navAddress":"桃園市大溪區文化路232號","method":"LINE","note":"無 米 芝杯","phone":"","isLandmark":false},{"seq":37,"code":"0260","name":"今晨早餐","address":"桃園市大溪區民權東路190號","navAddress":"桃園市大溪區民權東路190號","method":"LINE","note":"香 無袋40$","phone":"033882122","isLandmark":false},{"seq":38,"code":"0101","name":"紫的寶","address":"桃園市大溪區民權東路165號","navAddress":"桃園市大溪區民權東路165號","method":"LINE","note":"香 無袋","phone":"03-3887477","isLandmark":false},{"seq":39,"code":"0275","name":"本丸飯糰","address":"桃園市大溪區田心里文化路48號","navAddress":"桃園市大溪區田心里文化路48號","method":"LINE","note":"香無11$  米芝15$","phone":"","isLandmark":false},{"seq":40,"code":"0103","name":"田心漢堡","address":"桃園市大溪區民權東路99號","navAddress":"桃園市大溪區民權東路99號","method":"LINE","note":"無袋","phone":"03-3872532","isLandmark":false},{"seq":41,"code":"0104","name":"25粉漿蛋餅","address":"桃園市大溪區民權東路25號","navAddress":"桃園市大溪區民權東路25號","method":"LINE","note":"無袋","phone":"0911-121-855","isLandmark":false},{"seq":42,"code":"0105","name":"芝多堡","address":"桃園市龍潭區石門路38號","navAddress":"桃園市龍潭區石門路38號","method":"LINE","note":"香袋 全杯","phone":"0981-290-776","isLandmark":false},{"seq":43,"code":"0106","name":"怡園","address":"桃園市龍潭區中正路三坑段733號","navAddress":"桃園市龍潭區中正路三坑段733號","method":"LINE","note":"香袋","phone":"","isLandmark":false},{"seq":44,"code":"0107","name":"瑞麟美而美","address":"桃園市龍潭區民族路181號","navAddress":"桃園市龍潭區民族路181號","method":"LINE","note":"香 薏 黑袋   無 米 芝 紅杯","phone":"03-4803776","isLandmark":false},{"seq":45,"code":"0108","name":"漢堡大師","address":"桃園市龍潭區民族路218號","navAddress":"桃園市龍潭區民族路218號","method":"LINE","note":"週六送 香袋 全杯","phone":"03-4893132","isLandmark":false},{"seq":46,"code":"0111","name":"哇早餐","address":"桃園市龍潭區神龍路367號 10:30","navAddress":"桃園市龍潭區神龍路367號","method":"LINE","note":"香袋  無米薏芝杏杯保5","phone":"03-4800334","isLandmark":false},{"seq":47,"code":"0112","name":"物汪窩","address":"桃園市龍潭區神龍路275號","navAddress":"桃園市龍潭區神龍路275號","method":"LINE","note":"籃換籃 香 無袋 薏杯","phone":"","isLandmark":false},{"seq":48,"code":"0276","name":"達人煎餃","address":"桃園市龍潭區北龍路13號","navAddress":"桃園市龍潭區北龍路13號","method":"帶巡","note":"香8 無6","phone":"","isLandmark":false},{"seq":49,"code":"0113","name":"紫米飯糰","address":"桃園市龍潭區聖亭路8號","navAddress":"桃園市龍潭區聖亭路8號","method":"LINE","note":"籃換籃 43$無38$白袋  15$薏芝 杏 紅 南杯 保25/25/25/15/25","phone":"0952-987-017","isLandmark":false},{"seq":50,"code":"0114","name":"哨子飯","address":"桃園市龍潭區梅龍路144號 梅龍","navAddress":"桃園市龍潭區梅龍路144號","method":"LINE","note":"全杯  15$米 15$薏 15$芝","phone":"","isLandmark":false},{"seq":51,"code":"0115","name":"紫米分店","address":"桃園市龍潭區梅龍路161號","navAddress":"桃園市龍潭區梅龍路161號","method":"LINE","note":"15$米薏芝杏杯 個保5","phone":"","isLandmark":false},{"seq":52,"code":"0116","name":"偉園湯包","address":"龍潭區中豐路上林段226號","navAddress":"桃園市龍潭區中豐路上林段226號","method":"LINE","note":"香袋","phone":"","isLandmark":false},{"seq":53,"code":"0117","name":"酷洛早餐","address":"桃園市龍潭區中豐路上林段232號","navAddress":"桃園市龍潭區中豐路上林段232號","method":"LINE","note":"香 無袋  米芝紅南杯","phone":"03-4891452","isLandmark":false},{"seq":54,"code":"0118","name":"美好美","address":"桃園市龍潭區中豐路上林段320號","navAddress":"桃園市龍潭區中豐路上林段320號","method":"LINE","note":"香袋","phone":"03-4700980","isLandmark":false},{"seq":55,"code":"0120","name":"知本蔥油餅","address":"桃園市龍潭區龍安一街20號 住家","navAddress":"桃園市龍潭區龍安一街20號","method":"LINE","note":"香袋","phone":"","isLandmark":false},{"seq":56,"code":"0119","name":"黃爺水煎包","address":"桃園市龍潭區中興路223號","navAddress":"桃園市龍潭區中興路223號","method":"LINE","note":"40$香無袋、全杯保5","phone":"","isLandmark":false},{"seq":57,"code":"0121","name":"窩客","address":"桃園市龍潭區中興路558號","navAddress":"桃園市龍潭區中興路558號","method":"LINE","note":"無袋","phone":"03-480-5346","isLandmark":false},{"seq":58,"code":"0123","name":"米吉米","address":"桃園市龍潭區中正路101號","navAddress":"桃園市龍潭區中正路101號","method":"LINE","note":"香 無袋","phone":"03-4994258","isLandmark":false},{"seq":59,"code":"0132","name":"幸福早餐屋","address":"桃園市龍潭區中豐路426號","navAddress":"桃園市龍潭區中豐路426號","method":"LINE","note":"香 無 薏袋 米杯","phone":"","isLandmark":false},{"seq":60,"code":"0133","name":"豐林美","address":"桃園市龍潭區中豐路502號","navAddress":"桃園市龍潭區中豐路502號","method":"LINE","note":"香袋 全杯","phone":"03-489-5346","isLandmark":false},{"seq":61,"code":"0126","name":"麥町吐司","address":"桃園市龍潭區龍元路11號","navAddress":"桃園市龍潭區龍元路11號","method":"LINE","note":"香 無袋","phone":"03-4090160","isLandmark":false},{"seq":62,"code":"0127","name":"微笑夯吐司","address":"桃園市龍潭區東龍路223號","navAddress":"桃園市龍潭區東龍路223號","method":"LINE","note":"香 無袋","phone":"0936-263-307","isLandmark":false},{"seq":63,"code":"0129","name":"東龍美而美","address":"桃園市龍潭區東龍路156號","navAddress":"桃園市龍潭區東龍路156號","method":"LINE","note":"香 無袋","phone":"","isLandmark":false},{"seq":64,"code":"0131","name":"傻師傅","address":"桃園市龍潭區中正路165號","navAddress":"桃園市龍潭區中正路165號","method":"LINE","note":"香袋","phone":"","isLandmark":false},{"seq":65,"code":"0134","name":"豪多鮮肉湯包","address":"桃園市平鎮區中豐路山頂段353號","navAddress":"桃園市平鎮區中豐路山頂段353號","method":"LINE","note":"香 無袋","phone":"","isLandmark":false},{"seq":66,"code":"0137","name":"清原南勢","address":"桃園平鎮區中豐路南勢二段244號","navAddress":"桃園市平鎮區中豐路南勢二段244號","method":"LINE","note":"40$無袋 開單月初給發票","phone":"","isLandmark":false},{"seq":67,"code":"0138","name":"弘爺","address":"桃園市平鎮區南平路22號","navAddress":"桃園市平鎮區南平路22號","method":"LINE","note":"香袋","phone":"03-403-1409","isLandmark":false},{"seq":68,"code":"0141","name":"豆豆屋","address":"桃園市楊梅區永美路220號","navAddress":"桃園市楊梅區永美路220號","method":"LINE","note":"香6袋   無10 薏4 芝4杯","phone":"03-431-3103","isLandmark":false},{"seq":69,"code":"0210","name":"陳Q冰室","address":"桃園市楊梅區四維里四維路202號","navAddress":"桃園市楊梅區四維里四維路202號","method":"LINE","note":"無袋","phone":"","isLandmark":false},{"seq":70,"code":"0143","name":"晨欣飯糰","address":"桃園市楊梅區永美路445巷174號","navAddress":"桃園市楊梅區永美路445巷174號","method":"LINE","note":"送住家 香 無袋 芝杯","phone":"","isLandmark":false},{"seq":71,"code":"0144","name":"傻師傅","address":"桃園市楊梅區環東路453號","navAddress":"桃園市楊梅區環東路453號","method":"LINE","note":"香 無 米杯","phone":"0903-267-166","isLandmark":false}]}}};
+const LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','Z'];
+const DAY_GROUPS = [
+  {id:'monThu', label:'一四'},
+  {id:'tueFri', label:'二五'},
+  {id:'wedSat', label:'三六'}
+];
+const SUB_DAYS = [
+  {id:'route1', label:'禮拜一'},
+  {id:'route2', label:'禮拜二'}
+];
+
+function todayKey(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+const TODAY = todayKey();
+
+let mode = 'sub'; // 'sub' | 'main'
+let currentSubDay = 'route1';
+let currentLetter = LETTERS.find(l => DATA.mainlines[l]) || 'D';
+let currentDayGroup = 'monThu';
+let searchTerm = '';
+let completedCache = {};
+
+function currentStops(){
+  if(mode === 'sub'){
+    return (DATA.substitute[currentSubDay]) || [];
+  } else {
+    const line = DATA.mainlines[currentLetter];
+    if(!line) return [];
+    return line[currentDayGroup] || [];
+  }
+}
+
+function currentStorageKey(){
+  if(mode === 'sub') return 'progress:' + TODAY + ':sub:' + currentSubDay;
+  return 'progress:' + TODAY + ':main:' + currentLetter + ':' + currentDayGroup;
+}
+
+async function loadCompleted(){
+  const key = currentStorageKey();
+  if(completedCache[key]) return completedCache[key];
+  let set = new Set();
+  try{
+    const raw = localStorage.getItem(key);
+    if(raw) set = new Set(JSON.parse(raw));
+  }catch(e){}
+  completedCache[key] = set;
+  return set;
+}
+async function saveCompleted(set){
+  const key = currentStorageKey();
+  try{ localStorage.setItem(key, JSON.stringify(Array.from(set))); }catch(e){}
+}
+
+function mapsUrl(stop){
+  return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(stop.navAddress) + '&travelmode=driving';
+}
+function telHref(phone){ return 'tel:' + phone.replace(/[^0-9+]/g,''); }
+
+function methodTags(m){
+  if(!m) return [{t:'其他',c:'其他'}];
+  const tags = [];
+  if(m.indexOf('LINE') !== -1) tags.push({t:'LINE',c:'LINE'});
+  if(m.indexOf('現') !== -1) tags.push({t:'現場',c:'現場'});
+  if(m.indexOf('公') !== -1) tags.push({t:'公司',c:'公司'});
+  if(m.indexOf('帶巡') !== -1) tags.push({t:'帶巡',c:'帶巡'});
+  if(m.indexOf('問') !== -1) tags.push({t:'問',c:'問'});
+  if(tags.length === 0) tags.push({t:'其他',c:'其他'});
+  return tags;
+}
+
+function svgPin(){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 22s7-7.5 7-12.5A7 7 0 0 0 5 9.5C5 14.5 12 22 12 22Z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="9.5" r="2.5" stroke="currentColor" stroke-width="2"/></svg>'; }
+function svgPhone(){ return '<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M6.5 3h3l1.5 4.5-2.2 1.5a12 12 0 0 0 6.2 6.2l1.5-2.2 4.5 1.5v3c0 1.1-.9 2-2.1 1.9C10.6 19 5 13.4 4.6 5.6 4.5 4.4 5.4 3.5 6.5 3.5V3Z" stroke="currentColor" stroke-width="1.6"/></svg>'; }
+function svgCheck(){ return '<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 13l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'; }
+
+function renderModeRow(){
+  const el = document.getElementById('modeRow');
+  el.innerHTML = '';
+  const modes = [{id:'sub', label:'代班路線'}, {id:'main', label:'主線路線'}];
+  modes.forEach(mObj => {
+    const div = document.createElement('div');
+    div.className = 'modeBtn' + (mode === mObj.id ? ' active' : '');
+    div.textContent = mObj.label;
+    div.onclick = () => { mode = mObj.id; searchTerm=''; document.getElementById('searchInput').value=''; renderAll(); };
+    el.appendChild(div);
+  });
+}
+
+function renderLetterRow(){
+  const el = document.getElementById('letterRow');
+  if(mode !== 'main'){ el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.innerHTML = '';
+  LETTERS.forEach(letter => {
+    const available = !!DATA.mainlines[letter];
+    const chip = document.createElement('div');
+    chip.className = 'letterChip' + (letter === currentLetter ? ' active' : '') + (available ? '' : ' disabled');
+    chip.textContent = letter;
+    if(available){
+      chip.onclick = () => {
+        currentLetter = letter;
+        const line = DATA.mainlines[letter];
+        if(!line[currentDayGroup]){
+          currentDayGroup = DAY_GROUPS.find(g => line[g.id])?.id || currentDayGroup;
+        }
+        searchTerm=''; document.getElementById('searchInput').value='';
+        renderAll();
+      };
+    }
+    el.appendChild(chip);
+  });
+}
+
+function renderTabs(){
+  const el = document.getElementById('tabs');
+  el.innerHTML = '';
+  if(mode === 'sub'){
+    SUB_DAYS.forEach(d => {
+      const stops = DATA.substitute[d.id] || [];
+      const div = document.createElement('div');
+      div.className = 'tab' + (currentSubDay === d.id ? ' active' : '');
+      div.innerHTML = d.label + '<div class="count">' + stops.length + ' 站</div>';
+      div.onclick = () => { currentSubDay = d.id; searchTerm=''; document.getElementById('searchInput').value=''; renderAll(); };
+      el.appendChild(div);
+    });
+  } else {
+    const line = DATA.mainlines[currentLetter] || {};
+    DAY_GROUPS.forEach(g => {
+      const stops = line[g.id];
+      const available = !!stops;
+      const div = document.createElement('div');
+      div.className = 'tab' + (currentDayGroup === g.id ? ' active' : '') + (available ? '' : ' disabled');
+      div.innerHTML = g.label + '<div class="count">' + (available ? stops.length + ' 站' : '尚無資料') + '</div>';
+      if(available){
+        div.onclick = () => { currentDayGroup = g.id; searchTerm=''; document.getElementById('searchInput').value=''; renderAll(); };
+      }
+      el.appendChild(div);
+    });
+  }
+}
+
+async function toggleDone(seq){
+  const set = await loadCompleted();
+  if(set.has(seq)) set.delete(seq); else set.add(seq);
+  await saveCompleted(set);
+  renderList();
+  renderProgress();
+}
+
+async function renderList(){
+  const listEl = document.getElementById('list');
+  const stops = currentStops();
+  const set = await loadCompleted();
+  const term = searchTerm.trim().toLowerCase();
+
+  listEl.innerHTML = '';
+
+  if(stops.length === 0){
+    listEl.innerHTML = '<div class="emptyState">這條路線的資料還沒有匯入喔。<br>傳 Word 檔給我就能加進來。</div>';
+    return;
+  }
+
+  let visibleCount = 0;
+
+  stops.forEach(stop => {
+    const matches = !term ||
+      stop.name.toLowerCase().indexOf(term) !== -1 ||
+      (stop.note||'').toLowerCase().indexOf(term) !== -1 ||
+      (stop.address||'').toLowerCase().indexOf(term) !== -1 ||
+      (stop.code||'').toLowerCase().indexOf(term) !== -1;
+
+    if(!matches) return;
+    visibleCount++;
+
+    const isDone = set.has(stop.seq);
+    const tags = methodTags(stop.method);
+    const badgesHtml = tags.map(t => '<div class="badge ' + t.c + '">' + t.t + '</div>').join('');
+
+    const phoneHtml = stop.phone ? (
+      '<a class="phoneLink" href="'+ telHref(stop.phone) +'" onclick="event.stopPropagation()">' + svgPhone() + '<span>' + stop.phone + '</span></a>'
+    ) : '<span></span>';
+
+    const card = document.createElement('div');
+    card.className = 'stop' + (isDone ? ' done' : '');
+
+    card.innerHTML = `
+      <div class="stubCol">
+        <div class="seqNum">${String(stop.seq).padStart(2,'0')}</div>
+        <div class="seqTotal">/${stops.length}</div>
+        ${stop.code ? `<div class="codeTag">#${stop.code}</div>` : ''}
+      </div>
+      <div class="body">
+        <div class="rowTop">
+          <div class="storeName">${stop.name}</div>
+          <div class="badgeGroup">${badgesHtml}</div>
+        </div>
+        ${stop.note ? `<div class="note">${stop.note}</div>` : ''}
+        <a class="addrBtn" href="${mapsUrl(stop)}" target="_blank" rel="noopener">
+          ${svgPin()}
+          <span>${stop.address}</span>
+          <span class="go">導航</span>
+        </a>
+        <div class="metaRow">
+          ${phoneHtml}
+          <div class="doneBtn ${isDone ? 'on' : ''}" data-seq="${stop.seq}">
+            ${svgCheck()}<span>${isDone ? '已送達' : '標記完成'}</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    card.querySelector('.doneBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleDone(stop.seq);
+    });
+
+    listEl.appendChild(card);
+  });
+
+  if(visibleCount === 0){
+    listEl.innerHTML = '<div class="emptyState">找不到符合的店家</div>';
+  }
+}
+
+async function renderProgress(){
+  const stops = currentStops();
+  const set = await loadCompleted();
+  const done = set.size;
+  const total = stops.length;
+  const pct = total ? Math.round(done/total*100) : 0;
+  document.getElementById('progressText').textContent = done + ' / ' + total + ' 已完成';
+  document.getElementById('progressPct').textContent = pct + '%';
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+
+function renderTitle(){
+  const el = document.getElementById('titleLabel');
+  if(mode === 'sub') el.textContent = '🥛 代班路線導航';
+  else el.textContent = '🥛 主線路線導航・' + currentLetter;
+}
+
+async function renderAll(){
+  renderModeRow();
+  renderLetterRow();
+  renderTabs();
+  renderTitle();
+  await renderList();
+  await renderProgress();
+}
+
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  searchTerm = e.target.value;
+  renderList();
+});
+
+document.getElementById('resetBtn').addEventListener('click', async () => {
+  const label = mode === 'sub'
+    ? (SUB_DAYS.find(d=>d.id===currentSubDay)||{}).label
+    : currentLetter + '-' + (DAY_GROUPS.find(g=>g.id===currentDayGroup)||{}).label;
+  if(!confirm('確定要重設今天「' + label + '」的完成標記嗎?')) return;
+  const key = currentStorageKey();
+  completedCache[key] = new Set();
+  await saveCompleted(completedCache[key]);
+  renderList();
+  renderProgress();
+});
+
+document.getElementById('dateLabel').textContent = TODAY;
+
+// init default day group to first available for currentLetter
+(function initDefaults(){
+  const line = DATA.mainlines[currentLetter];
+  if(line && !line[currentDayGroup]){
+    currentDayGroup = DAY_GROUPS.find(g => line[g.id])?.id || currentDayGroup;
+  }
+})();
+
+renderAll();
+</script>
+</body>
+</html>
