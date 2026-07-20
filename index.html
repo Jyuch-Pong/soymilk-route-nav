@@ -95,6 +95,15 @@
   .seqNum{ font-family:"SF Mono","JetBrains Mono",Consolas,monospace; font-size:15px; font-weight:700; color:var(--amber); line-height:1; }
   .seqTotal{ font-family:"SF Mono","JetBrains Mono",Consolas,monospace; font-size:9px; color:var(--grey); margin-top:2px; }
   .codeTag{ font-family:"SF Mono","JetBrains Mono",Consolas,monospace; font-size:8.5px; color:var(--purple); margin-top:6px; }
+  .moveBtns{ display:flex; flex-direction:column; gap:4px; margin-top:8px; }
+  .moveBtn{
+    width:26px; height:22px; border-radius:6px;
+    background:var(--card); border:1px solid var(--line); color:var(--cream-dim);
+    font-size:10px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+  }
+  .moveBtn:disabled{ opacity:.25; cursor:default; }
+  .moveBtn:active:not(:disabled){ background:rgba(226,165,69,.18); color:var(--amber); }
 
   .body{ flex:1; padding:12px 12px 12px 14px; min-width:0; }
   .rowTop{ display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
@@ -284,10 +293,39 @@ function saveDeleted(deletedIds){
   try{ localStorage.setItem('edits_deleted:'+currentGroupKey(), JSON.stringify(deletedIds)); }catch(e){}
 }
 
+function loadOrder(){
+  try{ return JSON.parse(localStorage.getItem('edits_order:'+currentGroupKey()) || '[]'); }catch(e){ return []; }
+}
+function saveOrder(orderIds){
+  try{ localStorage.setItem('edits_order:'+currentGroupKey(), JSON.stringify(orderIds)); }catch(e){}
+}
+
 function currentStops(){
   const { added, deletedSet } = loadEdits();
   const base = baseStops().filter(s => !deletedSet.has(s.id));
-  return base.concat(added);
+  const merged = base.concat(added);
+  const order = loadOrder();
+  if(order.length === 0) return merged;
+  const idToStop = new Map(merged.map(s => [s.id, s]));
+  const ordered = [];
+  order.forEach(id => {
+    if(idToStop.has(id)){ ordered.push(idToStop.get(id)); idToStop.delete(id); }
+  });
+  idToStop.forEach(s => ordered.push(s));
+  return ordered;
+}
+
+function moveStop(id, dir){
+  const list = currentStops();
+  const idx = list.findIndex(s => s.id === id);
+  if(idx < 0) return;
+  const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+  if(swapIdx < 0 || swapIdx >= list.length) return;
+  const tmp = list[idx];
+  list[idx] = list[swapIdx];
+  list[swapIdx] = tmp;
+  saveOrder(list.map(s => s.id));
+  renderList();
 }
 
 function deletedBaseStops(){
@@ -518,7 +556,7 @@ async function renderList(){
   let visibleCount = 0;
   let displayIndex = 0;
 
-  stops.forEach(stop => {
+  stops.forEach((stop, fullIdx) => {
     const matches = !term ||
       stop.name.toLowerCase().indexOf(term) !== -1 ||
       (stop.note||'').toLowerCase().indexOf(term) !== -1 ||
@@ -547,6 +585,12 @@ async function renderList(){
         <div class="seqTotal">/${stops.length}</div>
         ${stop.code ? `<div class="codeTag">#${stop.code}</div>` : ''}
         ${String(stop.id).startsWith('local-') ? `<div class="codeTag">新增</div>` : ''}
+        ${editMode ? `
+          <div class="moveBtns">
+            <button class="moveBtn" data-dir="up" ${fullIdx===0 ? 'disabled' : ''}>▲</button>
+            <button class="moveBtn" data-dir="down" ${fullIdx===stops.length-1 ? 'disabled' : ''}>▼</button>
+          </div>
+        ` : ''}
       </div>
       <div class="body">
         <div class="rowTop">
@@ -577,6 +621,12 @@ async function renderList(){
       card.querySelector('.delStopBtn').addEventListener('click', (e) => {
         e.stopPropagation();
         deleteStop(stop);
+      });
+      card.querySelectorAll('.moveBtn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          moveStop(stop.id, btn.dataset.dir);
+        });
       });
     }
 
